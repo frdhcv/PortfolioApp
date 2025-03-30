@@ -2,19 +2,25 @@ package com.example.portfolio.Service;
 
 import com.example.portfolio.Repository.ProjectRepository;
 import com.example.portfolio.Repository.UserRepository;
-import com.example.portfolio.entity.*;
+import com.example.portfolio.entity.PortfolioEntity;
+import com.example.portfolio.entity.ProjectComment;
+import com.example.portfolio.entity.ProjectEntity;
+import com.example.portfolio.entity.UserEntity;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.UUID;
 
 @Service
 public class ProjectService {
@@ -139,34 +145,83 @@ public class ProjectService {
         return "✅ Comment added to project!";
     }
 
-    public String uploadProjectImage(Long projectId, MultipartFile file) {
+    private String calculateMD5(byte[] data) {
         try {
-            if (file.isEmpty()) {
-                throw new RuntimeException("Failed to upload empty file");
+            MessageDigest md = MessageDigest.getInstance("MD5");
+            byte[] hash = md.digest(data);
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : hash) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) hexString.append('0');
+                hexString.append(hex);
             }
+            return hexString.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("Failed to calculate MD5", e);
+        }
+    }
 
+    private String getExistingImagePath(String md5Hash, String extension) {
+        try {
+            Path dir = Paths.get(uploadDir);
+            return Files.walk(dir)
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.getFileName().toString().startsWith(md5Hash))
+                    .findFirst()
+                    .map(path -> "/media/" + path.getFileName().toString())
+                    .orElse(null);
+        } catch (IOException e) {
+            return null;
+        }
+    }
+
+    public String uploadProjectImage(Long projectId, MultipartFile file) {
+        if (file == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No file was uploaded");
+        }
+
+        if (file.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Uploaded file is empty");
+        }
+
+        try {
             ProjectEntity project = projectRepository.findById(projectId)
-                    .orElseThrow(() -> new RuntimeException("Project not found"));
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found"));
 
             // Validate file type
             String contentType = file.getContentType();
             if (contentType == null || !contentType.startsWith("image/")) {
-                throw new RuntimeException("Only image files are allowed");
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only image files are allowed");
             }
 
             // Get original filename and clean it
             String originalFilename = StringUtils.cleanPath(file.getOriginalFilename());
+            if (originalFilename == null || originalFilename.isEmpty()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid file name");
+            }
+
             String extension = originalFilename.substring(originalFilename.lastIndexOf(".")).toLowerCase();
 
             // Validate extension
             if (!extension.matches("\\.(jpg|jpeg|png|gif)$")) {
-                throw new RuntimeException("Only JPG, PNG and GIF files are allowed");
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only JPG, PNG and GIF files are allowed");
             }
 
-            // Generate unique filename
-            String newFilename = UUID.randomUUID().toString() + extension;
+            // Calculate MD5 hash of file content
+            byte[] fileContent = file.getBytes();
+            String md5Hash = calculateMD5(fileContent);
 
-            // Save file
+            // Check if this image already exists
+            String existingImagePath = getExistingImagePath(md5Hash, extension);
+            if (existingImagePath != null) {
+                // If image already exists, just update the project with existing image URL
+                project.setImageUrl(existingImagePath);
+                projectRepository.save(project);
+                return "✅ Image reference updated successfully! You can view it at: " + existingImagePath;
+            }
+
+            // If image doesn't exist, save it with MD5 hash as filename
+            String newFilename = md5Hash + extension;
             Path filePath = Paths.get(uploadDir, newFilename);
             Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
 
@@ -175,9 +230,9 @@ public class ProjectService {
             project.setImageUrl(imageUrl);
             projectRepository.save(project);
 
-            return "✅ Image uploaded successfully!";
+            return "✅ Image uploaded successfully! You can view it at: " + imageUrl;
         } catch (IOException e) {
-            throw new RuntimeException("Failed to upload image: " + e.getMessage());
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to upload image: " + e.getMessage());
         }
     }
 }

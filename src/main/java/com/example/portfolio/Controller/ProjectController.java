@@ -82,9 +82,10 @@ public class ProjectController {
             @PathVariable Long id,
             @Parameter(
                 description = "Image file to upload (JPG, PNG, GIF)",
-                schema = @Schema(type = "string", format = "binary")
+                required = true,
+                schema = @Schema(type = "string", format = "base64")
             )
-            @RequestParam("image") MultipartFile file) {
+            @RequestPart(value = "file") MultipartFile file) {
         return ResponseEntity.ok(projectService.uploadProjectImage(id, file));
     }
 
