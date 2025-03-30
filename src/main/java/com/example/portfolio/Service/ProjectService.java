@@ -12,6 +12,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -234,5 +235,73 @@ public class ProjectService {
         } catch (IOException e) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to upload image: " + e.getMessage());
         }
+    }
+
+    public String uploadProjectVideo(Long projectId, MultipartFile file) {
+        try {
+            // Validate file
+            if (file.isEmpty()) {
+                throw new IllegalArgumentException("Video file is empty");
+            }
+
+            // Validate file type
+            String contentType = file.getContentType();
+            if (contentType == null || !contentType.startsWith("video/")) {
+                throw new IllegalArgumentException("Invalid file type. Only video files are allowed.");
+            }
+
+            // Get file extension
+            String originalFilename = file.getOriginalFilename();
+            String extension = originalFilename.substring(originalFilename.lastIndexOf("."));
+
+            // Calculate MD5 hash
+            String md5Hash = calculateMD5(file.getBytes());
+
+            // Check if video already exists
+            String existingVideoPath = getExistingVideoPath(md5Hash, extension);
+            if (existingVideoPath != null) {
+                // Update project with existing video URL
+                ProjectEntity project = projectRepository.findById(projectId)
+                    .orElseThrow(() -> new RuntimeException("Project not found"));
+                project.setVideoUrl(existingVideoPath);
+                projectRepository.save(project);
+                return existingVideoPath;
+            }
+
+            // Create upload directory if it doesn't exist
+            String uploadDir = "resources/media";
+            File directory = new File(uploadDir);
+            if (!directory.exists()) {
+                directory.mkdirs();
+            }
+
+            // Save video with MD5 hash as filename
+            String filename = md5Hash + extension;
+            Path filePath = Paths.get(uploadDir, filename);
+            Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+
+            // Update project with video URL
+            String videoUrl = "/media/" + filename;
+            ProjectEntity project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new RuntimeException("Project not found"));
+            project.setVideoUrl(videoUrl);
+            projectRepository.save(project);
+
+            return videoUrl;
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to upload video", e);
+        }
+    }
+
+    private String getExistingVideoPath(String md5Hash, String extension) {
+        String uploadDir = "resources/media";
+        File directory = new File(uploadDir);
+        if (directory.exists() && directory.isDirectory()) {
+            File[] files = directory.listFiles((dir, name) -> name.startsWith(md5Hash) && name.endsWith(extension));
+            if (files != null && files.length > 0) {
+                return "/media/" + files[0].getName();
+            }
+        }
+        return null;
     }
 }

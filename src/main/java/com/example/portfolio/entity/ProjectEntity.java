@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import lombok.Data;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -20,10 +21,10 @@ public class ProjectEntity {
     private String description;
     private String githubLink;
 
-    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    @Column(name = "image_url")
     private String imageUrl;
 
-    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    @Column(name = "video_url")
     private String videoUrl;
 
     @JsonProperty(access = JsonProperty.Access.READ_ONLY)
@@ -32,6 +33,9 @@ public class ProjectEntity {
     @Version
     @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     private Integer version;
+
+    @Column(name = "created_at")
+    private LocalDateTime createdAt;
 
     @ManyToOne
     @JoinColumn(name = "portfolio_id")
@@ -49,5 +53,21 @@ public class ProjectEntity {
             return portfolio.getUser().getUsername();
         }
         return null;
+    }
+
+    public String getImageUrl() {
+        return imageUrl;
+    }
+
+    public void setImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
+    }
+
+    public String getVideoUrl() {
+        return videoUrl;
+    }
+
+    public void setVideoUrl(String videoUrl) {
+        this.videoUrl = videoUrl;
     }
 }

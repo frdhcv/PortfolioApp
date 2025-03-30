@@ -5,11 +5,14 @@ import com.example.portfolio.entity.ProjectEntity;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.http.HttpStatus;
 
 import java.util.List;
 
@@ -103,5 +106,30 @@ public class ProjectController {
     public ResponseEntity<String> commentOnProject(@PathVariable Long id,
                                                    @RequestParam String text) {
         return ResponseEntity.ok(projectService.addCommentToProject(id, text));
+    }
+
+    @Operation(
+        summary = "Upload video for a project",
+        description = "Upload a video file for a specific project. Supports MP4, MOV, and AVI formats."
+    )
+    @PostMapping(value = "/{id}/upload-video", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<String> uploadProjectVideo(
+            @Parameter(description = "Project ID") 
+            @PathVariable Long id,
+            @Parameter(
+                description = "Video file to upload (MP4, MOV, AVI)",
+                required = true,
+                schema = @Schema(type = "string", format = "base64")
+            )
+            @RequestPart(value = "file") MultipartFile file) {
+        try {
+            String videoUrl = projectService.uploadProjectVideo(id, file);
+            return ResponseEntity.ok("Video uploaded successfully! You can view it at: " + videoUrl);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Failed to upload video: " + e.getMessage());
+        }
     }
 }
