@@ -6,9 +6,9 @@ spring:
     name: Portfolio
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/postgres
-    username: postgres
-    password: Ferid100
+    url: jdbc:postgresql://dpg-cvmi3l0gjchc73d41gt0-a.oregon-postgres.render.com:5432/portfolio_db_m2vq
+    username: portfolio_db_m2vq_user
+    password: jWUWtEZZLqpvzfERvnNK9qtXOPyaHX9h
     driver-class-name: org.postgresql.Driver
 
   jpa:
