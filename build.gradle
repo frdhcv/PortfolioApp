@@ -1,5 +1,3 @@
-
-
 plugins {
     id 'java'
     id 'org.springframework.boot' version '3.4.4'
@@ -41,7 +39,7 @@ dependencies {
 tasks.named('test') {
     useJUnitPlatform()
 }
+
 springBoot {
     mainClass = 'com.example.portfolio.PortfolioApplication'
 }
-
