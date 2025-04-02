@@ -28,8 +28,10 @@ public class UserService {
     }
 
     public UserEntity getCurrentUser() {
-        return userRepository.findById(2L).orElseThrow();
+        return userRepository.findAll().stream().findFirst()
+                .orElseThrow(() -> new RuntimeException("No users in database"));
     }
+
 
     public UserEntity createUser(UserEntity newUser) {
         if (newUser.getUsername() == null || newUser.getUsername().trim().isEmpty()) {
@@ -40,15 +42,12 @@ public class UserService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Username already exists");
         }
 
-        // Save user
-        UserEntity savedUser = userRepository.save(newUser);
-
         // Auto-create portfolio
         PortfolioEntity portfolio = new PortfolioEntity();
-        portfolio.setUser(savedUser);
-        savedUser.setPortfolio(portfolio);
+        portfolio.setUser(newUser); // one-to-one əlaqə qururuq
+        newUser.setPortfolio(portfolio); // iki tərəfli əlaqə
 
-        return userRepository.save(savedUser);
+        return userRepository.save(newUser);
     }
 
 
