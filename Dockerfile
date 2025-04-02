@@ -13,6 +13,7 @@ RUN gradle bootJar -x test
 FROM eclipse-temurin:21-jdk-alpine
 WORKDIR /app
 
+
 # This line avoids hardcoding the JAR name
 COPY --from=builder /app/build/libs/*.jar app.jar
 
