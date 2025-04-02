@@ -16,6 +16,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/projects")
+@CrossOrigin(origins="**")
 @Tag(name = "Project Controller", description = "APIs for managing projects")
 public class ProjectController {
 
