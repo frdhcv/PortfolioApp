@@ -113,23 +113,47 @@ public class ProjectService {
         return "⚠️ You already saved this project.";
     }
 
+    public String unsaveProject(Long projectId){
+        UserEntity user = getCurrentUser();
+        ProjectEntity project = projectRepository.findById(projectId).orElseThrow();
+        if (!user.getSavedProjects().contains(project)) {
+            user.getSavedProjects().remove(project);
+            userRepository.save(user);
+            return "✅ Project unsaved!";
+        }
+        return "⚠️ You haven't saved this project.";
+    }
+
+    public ProjectEntity updateProject(Long projectId, ProjectEntity updatedData) {
+        ProjectEntity project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new RuntimeException("Project not found"));
+
+        // Update allowed fields
+        project.setTitle(updatedData.getTitle());
+        project.setDescription(updatedData.getDescription());
+        project.setGithubLink(updatedData.getGithubLink());
+
+        return projectRepository.save(project);
+    }
+
+
     public List<ProjectEntity> getSavedProjects() {
         return getCurrentUser().getSavedProjects();
     }
 
-    public String attachMediaToProject(Long projectId, String imageUrl, String videoUrl) {
-        ProjectEntity project = projectRepository.findById(projectId).orElseThrow();
-
-        if (imageUrl != null && !imageUrl.isEmpty()) {
-            project.setImageUrl(imageUrl);
-        }
-        if (videoUrl != null && !videoUrl.isEmpty()) {
-            project.setVideoUrl(videoUrl);
-        }
-
-        projectRepository.save(project);
-        return "✅ Media attached to project!";
-    }
+//    public String attachMediaToProject(Long projectId, String imageUrl, String videoUrl) {
+//        ProjectEntity project = projectRepository.findById(projectId).orElseThrow();
+//
+//        if (imageUrl != null && !imageUrl.isEmpty()) {
+//            project.setImageUrl(imageUrl);
+//        }
+//        if (videoUrl != null && !videoUrl.isEmpty()) {
+//            project.setVideoUrl(videoUrl);
+//        }
+//
+//        projectRepository.save(project);
+//        return "✅ Media attached to project!";
+//    }
 
     public String addCommentToProject(Long projectId, String text) {
         UserEntity user = getCurrentUser();
@@ -237,61 +261,110 @@ public class ProjectService {
         }
     }
 
+    public String deleteProjectImage(Long projectId) {
+        ProjectEntity project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found"));
+
+        String imageUrl = project.getImageUrl();
+        if (imageUrl == null || imageUrl.isEmpty()) {
+            return "⚠️ No image to delete.";
+        }
+
+        // Delete image file from disk
+        deletePhysicalImageFile(imageUrl);
+
+        // Remove image URL from project
+        project.setImageUrl(null);
+        projectRepository.save(project);
+
+        return "✅ Image deleted successfully.";
+    }
+
+    private void deletePhysicalImageFile(String imageUrl) {
+        try {
+            String filename = imageUrl.replace("/media/", "");
+            Path filePath = Paths.get(uploadDir, filename);
+            Files.deleteIfExists(filePath);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to delete image file", e);
+        }
+    }
+
+
+
     public String uploadProjectVideo(Long projectId, MultipartFile file) {
         try {
-            // Validate file
             if (file.isEmpty()) {
                 throw new IllegalArgumentException("Video file is empty");
             }
 
-            // Validate file type
             String contentType = file.getContentType();
             if (contentType == null || !contentType.startsWith("video/")) {
                 throw new IllegalArgumentException("Invalid file type. Only video files are allowed.");
             }
 
-            // Get file extension
             String originalFilename = file.getOriginalFilename();
             String extension = originalFilename.substring(originalFilename.lastIndexOf("."));
-
-            // Calculate MD5 hash
             String md5Hash = calculateMD5(file.getBytes());
 
-            // Check if video already exists
-            String existingVideoPath = getExistingVideoPath(md5Hash, extension);
-            if (existingVideoPath != null) {
-                // Update project with existing video URL
-                ProjectEntity project = projectRepository.findById(projectId)
+            // Load project
+            ProjectEntity project = projectRepository.findById(projectId)
                     .orElseThrow(() -> new RuntimeException("Project not found"));
-                project.setVideoUrl(existingVideoPath);
-                projectRepository.save(project);
-                return existingVideoPath;
+
+            // If a video already exists, delete it
+            if (project.getVideoUrl() != null) {
+                deletePhysicalVideoFile(project.getVideoUrl());
             }
 
-            // Create upload directory if it doesn't exist
+            // Save new video
             String uploadDir = "resources/media";
             File directory = new File(uploadDir);
-            if (!directory.exists()) {
-                directory.mkdirs();
-            }
+            if (!directory.exists()) directory.mkdirs();
 
-            // Save video with MD5 hash as filename
             String filename = md5Hash + extension;
             Path filePath = Paths.get(uploadDir, filename);
             Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
 
-            // Update project with video URL
+            // Update project
             String videoUrl = "/media/" + filename;
-            ProjectEntity project = projectRepository.findById(projectId)
-                .orElseThrow(() -> new RuntimeException("Project not found"));
             project.setVideoUrl(videoUrl);
             projectRepository.save(project);
 
             return videoUrl;
+
         } catch (IOException e) {
             throw new RuntimeException("Failed to upload video", e);
         }
     }
+
+    public String deleteProjectVideo(Long projectId) {
+        ProjectEntity project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new RuntimeException("Project not found"));
+
+        String videoUrl = project.getVideoUrl();
+        if (videoUrl == null || videoUrl.isEmpty()) {
+            return "⚠️ No video to delete.";
+        }
+
+        deletePhysicalVideoFile(videoUrl);
+        project.setVideoUrl(null);
+        projectRepository.save(project);
+
+        return "✅ Video deleted successfully.";
+    }
+
+    private void deletePhysicalVideoFile(String videoUrl) {
+        // Remove "/media/" prefix to get the filename
+        String filename = videoUrl.replace("/media/", "");
+        Path filePath = Paths.get("resources/media", filename);
+        try {
+            Files.deleteIfExists(filePath);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to delete video file: " + filename, e);
+        }
+    }
+
+
 
     private String getExistingVideoPath(String md5Hash, String extension) {
         String uploadDir = "resources/media";

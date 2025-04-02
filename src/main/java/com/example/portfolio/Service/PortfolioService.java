@@ -19,4 +19,15 @@ public class PortfolioService {
                 .map(UserEntity::getPortfolio)
                 .orElse(null);
     }
+    public PortfolioEntity getPortfolioByUserId(Long userId) {
+        UserEntity user = userRepository.findById(userId).orElseThrow(() -> new RuntimeException("User not found"));
+        PortfolioEntity portfolio = user.getPortfolio();
+
+        if (portfolio == null) {
+            throw new RuntimeException("This user has no portfolio.");
+        }
+
+        return portfolio;
+    }
+
 }

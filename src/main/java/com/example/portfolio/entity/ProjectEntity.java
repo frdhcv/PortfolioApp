@@ -12,6 +12,7 @@ import java.util.List;
 @Data
 @Entity
 public class ProjectEntity {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @JsonProperty(access = JsonProperty.Access.READ_ONLY)
@@ -22,9 +23,11 @@ public class ProjectEntity {
     private String githubLink;
 
     @Column(name = "image_url")
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     private String imageUrl;
 
     @Column(name = "video_url")
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     private String videoUrl;
 
     @JsonProperty(access = JsonProperty.Access.READ_ONLY)
@@ -47,27 +50,11 @@ public class ProjectEntity {
     @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     private List<ProjectComment> comments = new ArrayList<>();
 
-    @JsonProperty("createdBy")
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     public String getCreatedByUsername() {
         if (portfolio != null && portfolio.getUser() != null) {
             return portfolio.getUser().getUsername();
         }
         return null;
-    }
-
-    public String getImageUrl() {
-        return imageUrl;
-    }
-
-    public void setImageUrl(String imageUrl) {
-        this.imageUrl = imageUrl;
-    }
-
-    public String getVideoUrl() {
-        return videoUrl;
-    }
-
-    public void setVideoUrl(String videoUrl) {
-        this.videoUrl = videoUrl;
     }
 }

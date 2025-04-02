@@ -19,8 +19,12 @@ public class PortfolioController {
     }
 
     // ✅ Get the current user's portfolio
-    @GetMapping("/me")
+    @GetMapping("/portfolio/currentUser")
     public ResponseEntity<PortfolioEntity> getMyPortfolio() {
         return ResponseEntity.ok(portfolioService.getPortfolioForUser(userService.getCurrentUser()));
+    }
+    @GetMapping("/portfolio/{userId}")
+    public ResponseEntity<PortfolioEntity> getPortfolio(@PathVariable Long userId) {
+        return ResponseEntity.ok(portfolioService.getPortfolioByUserId(userId));
     }
 }

@@ -18,6 +18,10 @@ public class UserEntity {
 
     private String username;
 
+    @Column(name = "profile_image_url")
+    private String profileImageUrl;
+
+
     @OneToOne(mappedBy = "user", cascade = CascadeType.ALL)
     @JsonIgnore // Prevents user from exposing portfolio in response unless needed
     private PortfolioEntity portfolio;
