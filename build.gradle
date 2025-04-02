@@ -41,6 +41,6 @@ tasks.named('test') {
 }
 
 springBoot {
-    mainClass.set('com.example.portfolio.PortfolioApplication')
+    mainClass = 'com.example.portfolio.PortfolioApplication'
 }
 
