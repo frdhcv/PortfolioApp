@@ -20,6 +20,13 @@ public class UserController {
         this.userService = userService;
     }
 
+    @Operation(summary = "Create new user")
+    @PostMapping("/createUser")
+    public ResponseEntity<UserEntity> createUser(@RequestBody UserEntity userEntity) {
+        return ResponseEntity.ok(userService.createUser(userEntity));
+    }
+
+
     @Operation(summary = "Upload user profile image")
     @PostMapping(value = "/upload-image/{userId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<String> uploadUserImage(@PathVariable Long userId, @RequestPart MultipartFile file) {
