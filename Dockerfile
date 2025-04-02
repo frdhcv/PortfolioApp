@@ -15,7 +15,7 @@ WORKDIR /app
 
 
 # This line avoids hardcoding the JAR name
-COPY --from=builder /app/build/libs/*.jar app.jar
+COPY build/libs/Portfolio-0.0.1-SNAPSHOT.jar app.jar
 
-EXPOSE 8081
+EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "app.jar"]
