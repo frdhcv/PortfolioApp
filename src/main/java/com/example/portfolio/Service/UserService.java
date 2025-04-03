@@ -1,6 +1,7 @@
 package com.example.portfolio.Service;
 
-import com.example.portfolio.Repository.UserRepository;
+import com.example.portfolio.unitofwork.UnitOfWork;
+import com.example.portfolio.unitofwork.UnitOfWorkFactory;
 import com.example.portfolio.entity.UserEntity;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -20,37 +21,43 @@ import java.util.List;
 @Service
 public class UserService {
 
-    private final UserRepository userRepository;
+    private final UnitOfWorkFactory unitOfWorkFactory;
 
-    public UserService(UserRepository userRepository) {
-        this.userRepository = userRepository;
+    public UserService(UnitOfWorkFactory unitOfWorkFactory) {
+        this.unitOfWorkFactory = unitOfWorkFactory;
     }
 
     public UserEntity getCurrentUser() {
-        return userRepository.findById(2L).orElseThrow();
+        UnitOfWork uow = unitOfWorkFactory.create();
+        try {
+            return uow.getUserRepository().findById(2L).orElseThrow();
+        } finally {
+            uow.commit();
+        }
     }
 
     public String uploadUserImage(Long userId, MultipartFile file) {
-        UserEntity user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
-
-        if (file.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Image file is empty");
-        }
-
-        String contentType = file.getContentType();
-        if (contentType == null || !contentType.startsWith("image/")) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only image files are allowed");
-        }
-
-        String originalFilename = file.getOriginalFilename();
-        String extension = originalFilename.substring(originalFilename.lastIndexOf(".")).toLowerCase();
-
-        if (!extension.matches("\\.(jpg|jpeg|png|gif)$")) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only JPG, PNG, and GIF are allowed");
-        }
-
+        UnitOfWork uow = unitOfWorkFactory.create();
         try {
+            UserEntity user = uow.getUserRepository().findById(userId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+
+            if (file.isEmpty()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Image file is empty");
+            }
+
+            String contentType = file.getContentType();
+            if (contentType == null || !contentType.startsWith("image/")) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only image files are allowed");
+            }
+
+            String originalFilename = file.getOriginalFilename();
+            String extension = originalFilename.substring(originalFilename.lastIndexOf(".")).toLowerCase();
+
+            if (!extension.matches("\\.(jpg|jpeg|png|gif)$")) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only JPG, PNG, and GIF are allowed");
+            }
+
             byte[] fileContent = file.getBytes();
             String md5Hash = calculateMD5(fileContent);
             String filename = md5Hash + extension;
@@ -64,17 +71,19 @@ public class UserService {
 
             String imageUrl = "/media/" + filename;
             user.setProfileImageUrl(imageUrl);
-            userRepository.save(user);
+            uow.getUserRepository().save(user);
+            uow.commit();
 
             return imageUrl;
 
-        } catch (IOException e) {
+        } catch (Exception e) {
+            uow.rollback();
             throw new RuntimeException("Failed to upload image", e);
         }
     }
 
     public String deleteUserImage(Long userId) {
-        UserEntity user = userRepository.findById(userId)
+        UserEntity user = unitOfWorkFactory.create().getUserRepository().findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
 
         String imageUrl = user.getProfileImageUrl();
@@ -88,7 +97,7 @@ public class UserService {
         }
 
         user.setProfileImageUrl(null);
-        userRepository.save(user);
+        unitOfWorkFactory.create().getUserRepository().save(user);
         return "✅ Profile image deleted.";
     }
 
@@ -101,8 +110,6 @@ public class UserService {
         UserEntity currentUser = getCurrentUser();
         return deleteUserImage(currentUser.getId());
     }
-
-
 
     private String calculateMD5(byte[] data) {
         try {
@@ -122,18 +129,15 @@ public class UserService {
         }
     }
 
-
-
-
     public String followUser(Long targetId) {
         UserEntity me = getCurrentUser();
-        UserEntity target = userRepository.findById(targetId).orElseThrow();
+        UserEntity target = unitOfWorkFactory.create().getUserRepository().findById(targetId).orElseThrow();
 
         if (me.getId().equals(targetId)) return "❌ You can't follow yourself.";
 
-        if (!userRepository.isFollowing(me.getId(), targetId)) {
+        if (!unitOfWorkFactory.create().getUserRepository().isFollowing(me.getId(), targetId)) {
             me.getFollowing().add(target);
-            userRepository.save(me);
+            unitOfWorkFactory.create().getUserRepository().save(me);
             return "✅ Followed " + target.getUsername();
         }
         return "⚠️ Already following " + target.getUsername();
@@ -141,11 +145,11 @@ public class UserService {
 
     public String unfollowUser(Long targetId) {
         UserEntity me = getCurrentUser();
-        UserEntity target = userRepository.findById(targetId).orElseThrow();
+        UserEntity target = unitOfWorkFactory.create().getUserRepository().findById(targetId).orElseThrow();
 
-        if (userRepository.isFollowing(me.getId(), targetId)) {
+        if (unitOfWorkFactory.create().getUserRepository().isFollowing(me.getId(), targetId)) {
             me.getFollowing().remove(target);
-            userRepository.save(me);
+            unitOfWorkFactory.create().getUserRepository().save(me);
             return "✅ Unfollowed " + target.getUsername();
         }
         return "⚠️ You're not following " + target.getUsername();
@@ -154,54 +158,84 @@ public class UserService {
     public String followUserByIds(Long sourceUserId, Long targetUserId) {
         if (sourceUserId.equals(targetUserId)) return "❌ You can't follow yourself.";
 
-        UserEntity source = userRepository.findById(sourceUserId).orElseThrow();
-        UserEntity target = userRepository.findById(targetUserId).orElseThrow();
+        UserEntity source = unitOfWorkFactory.create().getUserRepository().findById(sourceUserId).orElseThrow();
+        UserEntity target = unitOfWorkFactory.create().getUserRepository().findById(targetUserId).orElseThrow();
 
-        if (!userRepository.isFollowing(sourceUserId, targetUserId)) {
+        if (!unitOfWorkFactory.create().getUserRepository().isFollowing(sourceUserId, targetUserId)) {
             source.getFollowing().add(target);
-            userRepository.save(source);
+            unitOfWorkFactory.create().getUserRepository().save(source);
             return "✅ " + source.getUsername() + " followed " + target.getUsername();
         }
         return "⚠️ Already following " + target.getUsername();
     }
 
     public String unfollowUserByIds(Long sourceUserId, Long targetUserId) {
-        UserEntity source = userRepository.findById(sourceUserId).orElseThrow();
-        UserEntity target = userRepository.findById(targetUserId).orElseThrow();
+        UnitOfWork uow = unitOfWorkFactory.create();
+        try {
+            UserEntity source = uow.getUserRepository().findById(sourceUserId).orElseThrow();
+            UserEntity target = uow.getUserRepository().findById(targetUserId).orElseThrow();
 
-        if (userRepository.isFollowing(sourceUserId, targetUserId)) {
-            source.getFollowing().remove(target);
-            userRepository.save(source);
-            return "✅ " + source.getUsername() + " unfollowed " + target.getUsername();
+            if (uow.getUserRepository().isFollowing(sourceUserId, targetUserId)) {
+                source.getFollowing().remove(target);
+                uow.getUserRepository().save(source);
+                uow.commit();
+                return "✅ " + source.getUsername() + " unfollowed " + target.getUsername();
+            }
+            return "⚠️ " + source.getUsername() + " is not following " + target.getUsername();
+        } catch (Exception e) {
+            uow.rollback();
+            throw e;
         }
-        return "⚠️ " + source.getUsername() + " is not following " + target.getUsername();
     }
 
-
     public List<UserEntity> getFollowing() {
-        return userRepository.findFollowingOfUser(getCurrentUser().getId());
+        UnitOfWork uow = unitOfWorkFactory.create();
+        try {
+            return uow.getUserRepository().findFollowingOfUser(getCurrentUser().getId());
+        } finally {
+            uow.commit();
+        }
     }
 
     public List<UserEntity> getFollowers() {
-        return userRepository.findFollowersOfUser(getCurrentUser().getId());
+        UnitOfWork uow = unitOfWorkFactory.create();
+        try {
+            return uow.getUserRepository().findFollowersOfUser(getCurrentUser().getId());
+        } finally {
+            uow.commit();
+        }
     }
 
     public boolean isFollowing(Long userId) {
-        return userRepository.isFollowing(getCurrentUser().getId(), userId);
+        UnitOfWork uow = unitOfWorkFactory.create();
+        try {
+            return uow.getUserRepository().isFollowing(getCurrentUser().getId(), userId);
+        } finally {
+            uow.commit();
+        }
     }
 
     public List<String> getFollowersByUserId(Long userId) {
-        List<UserEntity> followers = userRepository.findFollowersOfUser(userId);
-        return followers.stream()
-                .map(UserEntity::getUsername)
-                .toList();
+        UnitOfWork uow = unitOfWorkFactory.create();
+        try {
+            List<UserEntity> followers = uow.getUserRepository().findFollowersOfUser(userId);
+            return followers.stream()
+                    .map(UserEntity::getUsername)
+                    .toList();
+        } finally {
+            uow.commit();
+        }
     }
 
     public List<String> getFollowingByUserId(Long userId) {
-        List<UserEntity> following = userRepository.findFollowingOfUser(userId);
-        return following.stream()
-                .map(UserEntity::getUsername)
-                .toList();
+        UnitOfWork uow = unitOfWorkFactory.create();
+        try {
+            List<UserEntity> following = uow.getUserRepository().findFollowingOfUser(userId);
+            return following.stream()
+                    .map(UserEntity::getUsername)
+                    .toList();
+        } finally {
+            uow.commit();
+        }
     }
-
 }
