@@ -18,6 +18,10 @@ public class UserEntity {
 
     private String username;
 
+    private String name;
+
+    private String surname;
+
     @Column(name = "profile_image_url")
     private String profileImageUrl;
 

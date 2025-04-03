@@ -1,7 +1,6 @@
 package com.example.portfolio.Service;
 
 import com.example.portfolio.Repository.UserRepository;
-import com.example.portfolio.entity.PortfolioEntity;
 import com.example.portfolio.entity.UserEntity;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -28,28 +27,8 @@ public class UserService {
     }
 
     public UserEntity getCurrentUser() {
-        return userRepository.findAll().stream().findFirst()
-                .orElseThrow(() -> new RuntimeException("No users in database"));
+        return userRepository.findById(2L).orElseThrow();
     }
-
-
-    public UserEntity createUser(UserEntity newUser) {
-        if (newUser.getUsername() == null || newUser.getUsername().trim().isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Username is required");
-        }
-
-        if (userRepository.findByUsername(newUser.getUsername()) != null) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Username already exists");
-        }
-
-        // Auto-create portfolio
-        PortfolioEntity portfolio = new PortfolioEntity();
-        portfolio.setUser(newUser); // one-to-one əlaqə qururuq
-        newUser.setPortfolio(portfolio); // iki tərəfli əlaqə
-
-        return userRepository.save(newUser);
-    }
-
 
     public String uploadUserImage(Long userId, MultipartFile file) {
         UserEntity user = userRepository.findById(userId)
